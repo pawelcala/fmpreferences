@@ -3,16 +3,14 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 plugins {
     kotlin("multiplatform")
     id("com.android.library")
-    id("com.jfrog.bintray").version("1.+")
-}
-
-bintray {
-    user = "pawelcala"
-    key = "8aff0a4e2941a5397affc5f320d9beae10d95a4d"
+    id("maven-publish")
+    id("com.jfrog.artifactory") version "4.13.0"
 }
 
 kotlin {
-    android()
+    android {
+        publishAllLibraryVariants()
+    }
     ios {
         binaries {
             framework {
@@ -40,17 +38,12 @@ kotlin {
             }
         }
 
-        val iosX64Main by sourceSets.getting
-        val iosArm64Main by sourceSets.getting
-        val iosMain by sourceSets.creating {
-            dependsOn(commonMain)
-            iosX64Main.dependsOn(this)
-            iosArm64Main.dependsOn(this)
-        }
-
+        val iosMain by sourceSets
         val iosTest by getting
     }
 }
+
+
 
 android {
     compileSdkVersion(29)
@@ -76,3 +69,59 @@ val packForXcode by tasks.creating(Sync::class) {
 }
 
 tasks.getByName("build").dependsOn(packForXcode)
+
+group = getProjectProperty("BINTRAY_PACKAGE")
+version = "0.1"
+
+publishing {
+    repositories {
+        maven {
+
+            val user = "pawelcala"
+            val repo = "maven"
+            val name = "fmpreferences"
+            setUrl("https://api.bintray.com/maven/$user/$repo/$name/;publish=0;override=1")
+
+            credentials {
+                username = getSystemProperty("BINTRAY_USER")
+                password = getSystemProperty("BINTRAY_API_KEY")
+            }
+        }
+    }
+}
+//Get properties defined in Help->Edit Custom Properties
+fun getSystemProperty(key: String): String =
+    System.getProperty(key) ?: throw IllegalStateException("Key $key not found")
+
+//Get properties defined in in gradle.properties
+fun getProjectProperty(key: String): String =
+    project.property(key) as? String ?: throw IllegalStateException("Key $key not found")
+
+publishing {
+    publications {
+        create<MavenPublication>("mavenJava") {
+            pom {
+                description.set(getProjectProperty("POM_DESCRIPTION"))
+                url.set(getProjectProperty("SITE_URL"))
+                licenses {
+                    license {
+                        name.set(getProjectProperty("POM_LICENSE_NAME"))
+                        url.set(getProjectProperty("POM_LICENSE_URL"))
+                        //distribution = POM_LICENSE_DIST
+                    }
+                }
+                developers {
+                    developer {
+                        id.set(getProjectProperty("POM_DEVELOPER_ID"))
+                        name.set(getProjectProperty("POM_DEVELOPER_NAME"))
+                        organization.set(getProjectProperty("POM_ORGANIZATION_NAME"))
+                        organizationUrl.set(getProjectProperty("POM_ORGANIZATION_URL"))
+                    }
+                }
+                scm {
+                    url.set(getProjectProperty("SITE_URL"))
+                }
+            }
+        }
+    }
+}
