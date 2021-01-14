@@ -1,3 +1,7 @@
+import com.android.build.gradle.internal.dsl.SigningConfig
+import java.io.FileInputStream
+import java.util.*
+
 plugins {
     id("com.android.application")
     kotlin("android")
@@ -11,6 +15,27 @@ dependencies {
 }
 
 android {
+
+    signingConfigs {
+        register("release") {
+
+            val keystorePropertiesFile = file("../keystore.properties")
+
+            if (!keystorePropertiesFile.exists()) {
+                logger.warn("Release builds may not work: signing config not found.")
+                return@register
+            }
+
+            val keystoreProperties = Properties()
+            keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+
+            keyAlias = keystoreProperties["keyAlias"] as String
+            keyPassword = keystoreProperties["keyPassword"] as String
+            storeFile = file(keystoreProperties["storeFile"] as String)
+            storePassword = keystoreProperties["storePassword"] as String
+        }
+    }
+
     compileSdkVersion(29)
     defaultConfig {
         applicationId = "pl.pawelcala.fmpreferences.androidApp"
@@ -20,8 +45,9 @@ android {
         versionName = "1.0"
     }
     buildTypes {
-        getByName("release") {
+        named("release") {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

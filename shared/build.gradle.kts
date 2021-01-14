@@ -1,20 +1,23 @@
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+import java.io.FileInputStream
+import java.util.*
+import java.net.URI
 
 plugins {
-    kotlin("multiplatform")
     id("com.android.library")
+    kotlin("multiplatform")
     id("maven-publish")
     id("com.jfrog.artifactory") version "4.13.0"
 }
 
 kotlin {
     android {
-        publishAllLibraryVariants()
+        publishLibraryVariants("release")
     }
     ios {
         binaries {
             framework {
-                baseName = "shared"
+                //baseName = "shared"
             }
         }
     }
@@ -46,11 +49,39 @@ kotlin {
 
 
 android {
+
+    signingConfigs {
+        register("release") {
+
+            val keystorePropertiesFile = file("../keystore.properties")
+
+            if (!keystorePropertiesFile.exists()) {
+                logger.warn("Release builds may not work: signing config not found.")
+                return@register
+            }
+
+            val keystoreProperties = Properties()
+            keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+
+            keyAlias = keystoreProperties["keyAlias"] as String
+            keyPassword = keystoreProperties["keyPassword"] as String
+            storeFile = file(keystoreProperties["storeFile"] as String)
+            storePassword = keystoreProperties["storePassword"] as String
+        }
+    }
+
     compileSdkVersion(29)
     sourceSets["main"].manifest.srcFile("src/androidMain/AndroidManifest.xml")
     defaultConfig {
         minSdkVersion(24)
         targetSdkVersion(29)
+    }
+
+    buildTypes {
+        named("release") {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+        }
     }
 }
 
@@ -71,7 +102,7 @@ val packForXcode by tasks.creating(Sync::class) {
 tasks.getByName("build").dependsOn(packForXcode)
 
 group = getProjectProperty("BINTRAY_PACKAGE")
-version = "0.1"
+version = "0.2"
 
 publishing {
     repositories {
@@ -80,7 +111,7 @@ publishing {
             val user = "pawelcala"
             val repo = "maven"
             val name = "fmpreferences"
-            setUrl("https://api.bintray.com/maven/$user/$repo/$name/;publish=0;override=1")
+            url = URI("https://api.bintray.com/maven/$user/$repo/$name/;publish=0;override=1")
 
             credentials {
                 username = getSystemProperty("BINTRAY_USER")
@@ -99,7 +130,7 @@ fun getProjectProperty(key: String): String =
 
 publishing {
     publications {
-        create<MavenPublication>("mavenJava") {
+        create<MavenPublication>("lib") {
             pom {
                 description.set(getProjectProperty("POM_DESCRIPTION"))
                 url.set(getProjectProperty("SITE_URL"))
@@ -107,7 +138,7 @@ publishing {
                     license {
                         name.set(getProjectProperty("POM_LICENSE_NAME"))
                         url.set(getProjectProperty("POM_LICENSE_URL"))
-                        //distribution = POM_LICENSE_DIST
+//                        distribution = POM_LICENSE_DIST
                     }
                 }
                 developers {
